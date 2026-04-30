@@ -1,20 +1,400 @@
 <!DOCTYPE html>
-<html>
-<head><title>OHS Site Observer — Loading...</title></head>
-<body>
-<p>Capturing your location, please wait...</p>
-<script>
-  const FORM_ID = "1caojfqrSdhjvumc1xInvnHyrBbswJtWCrp7F9jnX8mM";
-  const GPS_ENTRY_ID = "input.Hvn9fb.zHQkBf"; // your GPS field entry ID
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>OHS Observer — Site Check-In</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f4f6f8;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .card {
+      background: #fff;
+      border-radius: 16px;
+      padding: 32px 28px;
+      max-width: 420px;
+      width: 100%;
+      box-shadow: 0 2px 16px rgba(0,0,0,0.08);
+    }
+    .logo {
+      font-size: 13px;
+      font-weight: 600;
+      color: #6b7280;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    h1 {
+      font-size: 20px;
+      font-weight: 700;
+      color: #111827;
+      margin-bottom: 6px;
+    }
+    .subtitle {
+      font-size: 14px;
+      color: #6b7280;
+      margin-bottom: 28px;
+      line-height: 1.5;
+    }
 
-  navigator.geolocation.getCurrentPosition(function(pos) {
-    const coords = pos.coords.latitude.toFixed(6) + ", " + pos.coords.longitude.toFixed(6);
-    const url = "https://docs.google.com/forms/d/" + FORM_ID + 
-                "/viewform?usp=pp_url&" + GPS_ENTRY_ID + "=" + encodeURIComponent(coords);
+    /* Status states */
+    .status-box {
+      border-radius: 12px;
+      padding: 18px 20px;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+    }
+    .status-icon {
+      font-size: 22px;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .status-text { flex: 1; }
+    .status-title {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 3px;
+    }
+    .status-desc {
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .state-waiting  { background: #eff6ff; border: 1px solid #bfdbfe; }
+    .state-waiting .status-title  { color: #1d4ed8; }
+    .state-waiting .status-desc   { color: #3b82f6; }
+
+    .state-success  { background: #f0fdf4; border: 1px solid #bbf7d0; }
+    .state-success .status-title  { color: #15803d; }
+    .state-success .status-desc   { color: #16a34a; }
+
+    .state-error    { background: #fef2f2; border: 1px solid #fecaca; }
+    .state-error .status-title    { color: #b91c1c; }
+    .state-error .status-desc     { color: #dc2626; }
+
+    .state-manual   { background: #fffbeb; border: 1px solid #fde68a; }
+    .state-manual .status-title   { color: #92400e; }
+    .state-manual .status-desc    { color: #b45309; }
+
+    /* Spinner */
+    .spinner {
+      width: 22px; height: 22px;
+      border: 3px solid #bfdbfe;
+      border-top-color: #1d4ed8;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Coordinates display */
+    .coords-box {
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-family: monospace;
+      font-size: 14px;
+      color: #374151;
+      margin-bottom: 20px;
+      word-break: break-all;
+      display: none;
+    }
+    .coords-label {
+      font-family: -apple-system, sans-serif;
+      font-size: 11px;
+      font-weight: 600;
+      color: #9ca3af;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+
+    /* Manual entry */
+    .manual-section { display: none; margin-bottom: 20px; }
+    .manual-section label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: #374151;
+      margin-bottom: 6px;
+    }
+    .manual-row { display: flex; gap: 10px; }
+    .manual-section input {
+      flex: 1;
+      padding: 10px 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      font-size: 14px;
+      color: #111827;
+      outline: none;
+    }
+    .manual-section input:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
+    .manual-section .hint {
+      font-size: 12px;
+      color: #9ca3af;
+      margin-top: 5px;
+    }
+
+    /* Buttons */
+    .btn {
+      display: block;
+      width: 100%;
+      padding: 14px;
+      border: none;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s, transform 0.1s;
+      text-align: center;
+      text-decoration: none;
+    }
+    .btn:active { transform: scale(0.98); }
+    .btn-primary { background: #2563eb; color: #fff; }
+    .btn-primary:hover { background: #1d4ed8; }
+    .btn-secondary { background: #f3f4f6; color: #374151; margin-top: 10px; }
+    .btn-secondary:hover { background: #e5e7eb; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* Troubleshoot tips */
+    .tips { display: none; margin-top: 16px; }
+    .tips-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #374151;
+      margin-bottom: 8px;
+    }
+    .tips ol {
+      padding-left: 18px;
+      font-size: 13px;
+      color: #6b7280;
+      line-height: 1.8;
+    }
+
+    .divider {
+      border: none;
+      border-top: 1px solid #f3f4f6;
+      margin: 20px 0;
+    }
+
+    footer {
+      margin-top: 24px;
+      font-size: 12px;
+      color: #9ca3af;
+      text-align: center;
+      line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">GIMPA · OHS Research</div>
+  <h1>Observer Site Check-In</h1>
+  <p class="subtitle">This page captures your GPS location and opens the Site Observation Form. Please allow location access when prompted.</p>
+
+  <!-- Status box (changes dynamically) -->
+  <div class="status-box state-waiting" id="status-box">
+    <div class="spinner" id="spinner"></div>
+    <div id="status-icon" class="status-icon" style="display:none"></div>
+    <div class="status-text">
+      <div class="status-title" id="status-title">Requesting your location…</div>
+      <div class="status-desc" id="status-desc">Please tap "Allow" if your browser asks for permission.</div>
+    </div>
+  </div>
+
+  <!-- Coordinates display (shown on success) -->
+  <div class="coords-box" id="coords-box">
+    <div class="coords-label">Captured GPS Coordinates</div>
+    <div id="coords-display">—</div>
+  </div>
+
+  <!-- Manual entry fallback -->
+  <div class="manual-section" id="manual-section">
+    <label>Enter coordinates manually</label>
+    <div class="manual-row">
+      <input type="number" id="manual-lat" placeholder="Latitude (e.g. 5.6037)" step="any" min="-90" max="90"/>
+      <input type="number" id="manual-lng" placeholder="Longitude (e.g. -0.1870)" step="any" min="-180" max="180"/>
+    </div>
+    <div class="hint">Open Google Maps, long-press your location, and read the coordinates shown at the top.</div>
+  </div>
+
+  <!-- Troubleshoot tips -->
+  <div class="tips" id="tips">
+    <div class="tips-title">How to fix location issues:</div>
+    <ol>
+      <li>Open your phone <strong>Settings → Apps → Browser</strong> (Chrome/Safari)</li>
+      <li>Tap <strong>Permissions → Location</strong> → set to <strong>Allow</strong></li>
+      <li>Make sure your phone's <strong>Location / GPS</strong> is turned ON in the notification bar</li>
+      <li>Return to this page and tap <strong>Try Again</strong></li>
+      <li>If still failing, use <strong>Enter Manually</strong> below</li>
+    </ol>
+  </div>
+
+  <!-- Action buttons -->
+  <button class="btn btn-primary" id="main-btn" onclick="handleMainBtn()" disabled>
+    Opening form…
+  </button>
+  <button class="btn btn-secondary" id="retry-btn" onclick="startGPS()" style="display:none">
+    Try Again
+  </button>
+  <button class="btn btn-secondary" id="manual-btn" onclick="showManual()" style="display:none">
+    Enter Coordinates Manually
+  </button>
+
+  <hr class="divider"/>
+  <footer>
+    GIMPA · MSc Occupational Health, Safety &amp; Environmental Management<br>
+    Greater Accra Region Field Research
+  </footer>
+</div>
+
+<script>
+  // ============================================================
+  // CONFIGURATION — fill in your values here
+  // ============================================================
+  const FORM_BASE_URL = "https://docs.google.com/forms/d/1caojfqrSdhjvumc1xInvnHyrBbswJtWCrp7F9jnX8mM/viewform";
+  const GPS_ENTRY_ID  = "input.Hvn9fb.zHQkBf";   // GPS coordinates field
+  // ============================================================
+
+  let capturedCoords = null;
+
+  function setStatus(state, icon, title, desc) {
+    const box = document.getElementById("status-box");
+    box.className = "status-box state-" + state;
+    document.getElementById("spinner").style.display     = (state === "waiting") ? "block" : "none";
+    const iconEl = document.getElementById("status-icon");
+    iconEl.style.display = (state !== "waiting") ? "block" : "none";
+    iconEl.textContent   = icon;
+    document.getElementById("status-title").textContent = title;
+    document.getElementById("status-desc").textContent  = desc;
+  }
+
+  function startGPS() {
+    document.getElementById("retry-btn").style.display   = "none";
+    document.getElementById("manual-btn").style.display  = "none";
+    document.getElementById("tips").style.display        = "none";
+    document.getElementById("coords-box").style.display  = "none";
+    document.getElementById("manual-section").style.display = "none";
+    document.getElementById("main-btn").disabled         = true;
+    document.getElementById("main-btn").textContent      = "Opening form…";
+    capturedCoords = null;
+
+    setStatus("waiting", "", "Requesting your location…", "Please tap \"Allow\" if your browser asks for permission.");
+
+    if (!navigator.geolocation) {
+      onError({ code: 0, message: "Geolocation not supported by this browser." });
+      return;
+    }
+
+    // Try high accuracy first, fall back to low accuracy on timeout
+    navigator.geolocation.getCurrentPosition(onSuccess, function(err) {
+      if (err.code === err.TIMEOUT || err.code === err.POSITION_UNAVAILABLE) {
+        // Retry with low accuracy (works better indoors / on some Android devices)
+        navigator.geolocation.getCurrentPosition(onSuccess, onError, {
+          enableHighAccuracy: false,
+          timeout: 15000,
+          maximumAge: 60000
+        });
+      } else {
+        onError(err);
+      }
+    }, {
+      enableHighAccuracy: true,
+      timeout: 12000,
+      maximumAge: 0
+    });
+  }
+
+  function onSuccess(position) {
+    const lat = position.coords.latitude.toFixed(6);
+    const lng = position.coords.longitude.toFixed(6);
+    const acc = Math.round(position.coords.accuracy);
+    capturedCoords = lat + ", " + lng;
+
+    setStatus("success", "✓", "Location captured successfully",
+      "Accuracy: ±" + acc + " metres" + (acc > 100 ? " (low accuracy — consider retrying outdoors)" : ""));
+
+    document.getElementById("coords-display").textContent = capturedCoords;
+    document.getElementById("coords-box").style.display   = "block";
+
+    const btn = document.getElementById("main-btn");
+    btn.disabled    = false;
+    btn.textContent = "Open Observer Form →";
+
+    document.getElementById("retry-btn").style.display = "block";
+  }
+
+  function onError(err) {
+    let desc = "";
+    switch(err.code) {
+      case 1: // PERMISSION_DENIED
+        desc = "Location permission was denied. See the steps below to enable it, then tap Try Again.";
+        break;
+      case 2: // POSITION_UNAVAILABLE
+        desc = "Your device could not determine its location. Try moving outdoors or closer to a window, then tap Try Again.";
+        break;
+      case 3: // TIMEOUT
+        desc = "Location request timed out. This can happen indoors. Try Again or enter coordinates manually.";
+        break;
+      default:
+        desc = "Geolocation is not supported by your browser. Please use Chrome or Safari and try again.";
+    }
+
+    setStatus("error", "!", "Could not get location", desc);
+    document.getElementById("tips").style.display       = "block";
+    document.getElementById("retry-btn").style.display  = "block";
+    document.getElementById("manual-btn").style.display = "block";
+
+    const btn = document.getElementById("main-btn");
+    btn.disabled    = true;
+    btn.textContent = "Fix location first";
+  }
+
+  function showManual() {
+    document.getElementById("manual-section").style.display = "block";
+    setStatus("manual", "✎", "Enter coordinates manually",
+      "Type in your latitude and longitude, then tap Open Observer Form.");
+
+    const btn = document.getElementById("main-btn");
+    btn.disabled    = false;
+    btn.textContent = "Open Observer Form →";
+  }
+
+  function handleMainBtn() {
+    // If manual entry is visible, use those values
+    const manualSec = document.getElementById("manual-section");
+    if (manualSec.style.display !== "none") {
+      const lat = parseFloat(document.getElementById("manual-lat").value);
+      const lng = parseFloat(document.getElementById("manual-lng").value);
+      if (isNaN(lat) || isNaN(lng)) {
+        alert("Please enter valid latitude and longitude values.");
+        return;
+      }
+      capturedCoords = lat.toFixed(6) + ", " + lng.toFixed(6);
+    }
+
+    if (!capturedCoords) {
+      alert("No coordinates available. Please allow location access or enter manually.");
+      return;
+    }
+
+    const url = FORM_BASE_URL + "?usp=pp_url&" + GPS_ENTRY_ID + "=" + encodeURIComponent(capturedCoords);
     window.location.href = url;
-  }, function(err) {
-    alert("Could not get GPS. Please enable location and try again.");
-  }, { enableHighAccuracy: true, timeout: 10000 });
+  }
+
+  // Start automatically on page load
+  window.addEventListener("load", startGPS);
 </script>
 </body>
 </html>
